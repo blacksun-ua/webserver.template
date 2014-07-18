@@ -1,27 +1,39 @@
 module.exports = {
     appenders : [ {
-        type : 'file',
-        filename : '/var/log/spa/main.log',
-        category : 'spa.main',
-        maxLogSize : 10485760,
-        backups : 3
+        type        : 'file',
+        filename    : '/var/log/template/main.log',
+        category    : 'template.main',
+        maxLogSize  : 10485760,
+        backups     : 3
     }, {
-        type : 'file',
-        filename : '/var/log/spa/db.log',
-        category : 'spa.db',
-        maxLogSize : 10485760,
-        backups : 3
+        type        : 'file',
+        filename    : '/var/log/template/db.log',
+        category    : 'template.db',
+        maxLogSize  : 10485760,
+        backups     : 3
     }, {
-        type : 'file',
-        filename : '/var/log/spa/result.log',
-        category : 't2t.api.result',
-        maxLogSize : 10485760,
-        backups : 3
+        type        : 'file',
+        filename    : '/var/log/template/server.in.log',
+        category    : 'template.in',
+        maxLogSize  : 10485760,
+        backups     : 3
     }, {
-        type : 'file',
-        filename : '/var/log/spa/ipc.log',
-        category : 't2t.api.ipc',
-        maxLogSize : 10485760,
-        backups : 3
+        type        : 'file',
+        filename    : '/var/log/template/server.in.out.log',
+        category    : 'template.in.out',
+        maxLogSize  : 10485760,
+        backups     : 3
+    }, {
+        type        : 'file',
+        filename    : '/var/log/template/providers.req.log',
+        category    : 'template.providers.req',
+        maxLogSize  : 10485760,
+        backups     : 3
+    }, {
+        type        : 'file',
+        filename    : '/var/log/template/providers.req.rsp.log',
+        category    : 'template.providers.req.rsp',
+        maxLogSize  : 10485760,
+        backups     : 3
     } ]
 };

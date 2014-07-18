@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export CONF=conf/dev/blacksun.template.conf.js
+export CONF=conf/dev/blacksun.local.template.conf.js
 export NODE_PATH=/usr/astra/node/lib/node_modules/:.
 export DEBUG='express:* node server.js'
 cd ../

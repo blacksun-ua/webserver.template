@@ -1,5 +1,8 @@
 module.exports = {
-    appenders : [ {
+    appenders : [
+    {
+        type        : 'console'
+    }, {
         type        : 'file',
         filename    : '/var/log/template/main.log',
         category    : 'template.main',

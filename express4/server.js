@@ -1,4 +1,4 @@
-var conf = require('conf/' + process.env.conf)
-  , srv  = require('server_instance');
+var conf = require(process.env.CONF)
+  , srv  = require('app');
 
-srv.start(conf);
+srv.listen(conf, process.env.CONF);

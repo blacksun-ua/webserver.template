@@ -1,6 +1,7 @@
 "use strict";
 var levels      = require('log4js/lib/levels')
   , date_utils  = require('date-utils')
+  , util        = require('util')
   , auth        = require('basic-auth');
 
 var DEFAULT_FORMAT = ':remote-addr - :remote-user [:date] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"';
@@ -25,6 +26,7 @@ var DEFAULT_FORMAT = ':remote-addr - :remote-user [:date] ":method :url HTTP/:ht
  *   - `:remote-user`
  *   - `:http-version`
  *   - `:user-agent`
+ *   - `:req-data`
  *   - `:rsp-data`
  *   - `:free`
  *   - `:skip`
@@ -108,6 +110,8 @@ function getLogger(logger4js, options) {
             res.end = function(chunk, encoding) {
                 res.end = end;
                 res.end(chunk, encoding);
+                res._logme.rsp = chunk;
+                res._logme.encoding = encoding;
                 log_it();
             };
         }
@@ -129,12 +133,14 @@ function getLogger(logger4js, options) {
 
 function format(fmt, req, res) {
     fmt = fmt.replace(/"/g, '\\"');
+    fmt = fmt.replace(/\n/g, '\\\n');
     var js = ' return "' + fmt.replace(/:([-\w]{2,})(?:\[([^\]]+)\])?/g, function(_, name, arg) {
         var token_name = name;
         if(typeof exports[name] != 'function')
             name = 'skip';
         return '"\n + (tokens["' + name + '"](req, res, "' + arg + '","' + token_name +'") || "-") + "';
     }) + '";'
+    //console.log(js)
     var fn = new Function('tokens, req, res', js);
     return fn(exports, req, res);
 }
@@ -253,8 +259,15 @@ exports.token('user-agent', function(req) {
     return req.headers['user-agent'];
 });
 
+exports.token('req-data', function(req, res) {
+    var result = req.body || '';
+    result = '\nREQ: ' + util.inspect(result, false);
+    return result.length > 8 ? result : ' ';
+});
+
 exports.token('rsp-data', function(req, res) {
-    return res.a;
+    var data = '\nRSP: ' + util.inspect(res._logme.rsp);
+    return data.length > 6 ? data : ' ';
 });
 
 exports.token('free', function(req, res, field) {
@@ -270,6 +283,8 @@ exports.token('req', function(req, res, field) {
 });
 
 exports.token('res', function(req, res, field) {
+    if('content-length' == field.toLowerCase() && !res._headers[field.toLowerCase()])
+        return res._logme.rsp.toString().length;
     return (res._headers || {})[field.toLowerCase()];
 });
 
@@ -277,4 +292,3 @@ module.exports = getLogger;
 
 // TODO:
 // 1. reopen file after write error (restore write after error)
-// 2. log response data

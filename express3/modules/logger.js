@@ -1,9 +1,9 @@
 "use strict";
-var levels = require("log4js/lib/levels");
-var DEFAULT_FORMAT = ':remote-addr - -' +
-  ' ":method :url HTTP/:http-version"' +
-  ' :status :content-length ":referrer"' +
-  ' ":user-agent"';
+var levels      = require('log4js/lib/levels')
+  , date_utils  = require('date-utils')
+  , auth        = require('basic-auth');
+
+var DEFAULT_FORMAT = ':remote-addr - :remote-user [:date] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"';
 /**
  * Log requests with the given `options` or a `format` string.
  *
@@ -11,21 +11,25 @@ var DEFAULT_FORMAT = ':remote-addr - -' +
  *
  *   - `format`        Format string, see below for tokens
  *   - `level`         A log4js levels instance. Supports also 'auto'
- *   - `immediate`     Dump log immegiate, or wait for response
+ *   - `immediate`     Dump log immegiate (true), or wait for response (false)
  *
  * Tokens:
  *
+ *   - `:url`
+ *   - `:method`
+ *   - `:response-time`
+ *   - `:date`
+ *   - `:status`
+ *   - `:referrer`
+ *   - `:remote-addr`
+ *   - `:remote-user`
+ *   - `:http-version`
+ *   - `:user-agent`
+ *   - `:rsp-data`
+ *   - `:free`
+ *   - `:skip`
  *   - `:req[header]` ex: `:req[Accept]`
  *   - `:res[header]` ex: `:res[Content-Length]`
- *   - `:http-version`
- *   - `:response-time`
- *   - `:remote-addr`
- *   - `:date`
- *   - `:method`
- *   - `:url`
- *   - `:referrer`
- *   - `:user-agent`
- *   - `:status`
  *
  * @param {String|Function|Object} format or options
  * @return {Function}
@@ -43,41 +47,55 @@ function getLogger(logger4js, options) {
 
     var thislogger = logger4js
   , level = levels.toLevel(options.level, levels.INFO)
-  , fmt = options.format || DEFAULT_FORMAT
+  , fmt   = options.format || DEFAULT_FORMAT
   , nolog = options.nolog ? createNoLogCondition(options.nolog) : null;
 
-  return function (req, res, next) {
-    // mount safety
-    if (req._logging) return next();
+    return function (req, res, next) {
+
+        function log_it() {
+            if (thislogger.isLevelEnabled(level)) {
+                if (typeof fmt === 'function') {
+                    var line = fmt(req, res, function(str) { return format(str, req, res); });
+                    if (line) thislogger.log(level, line);
+                } else {
+                    thislogger.log(level, format(fmt, req, res));
+                }
+            }
+        }
+
+        // prepare our struct
+        res._logme = res._logme || {};
+
+        // mount safety
+        if(res._logme.logging) return next();
 
         // nologs
         if (nolog && nolog.test(req.originalUrl)) return next();
         if (thislogger.isLevelEnabled(level) || options.level === 'auto') {
 
-            var start = process.hrtime()
-            , statusCode
-            , writeHead = res.writeHead
+            var writeHead = res.writeHead
             , end = res.end
             , url = req.originalUrl;
 
+            res._logme.startAt = process.hrtime();
+
             // flag as logging
-            //req._logging = true;
+            //req._logme.logging = true;
 
             // write immediate
             if(options.immediate) {
-                thislogger.log(level, format(fmt, req, res));
+                log_it();
                 return next();
             }
 
             // proxy for statusCode.
-            res.writeHead = function(code, headers){
+            res.writeHead = function(code, headers) {
                 res.writeHead = writeHead;
                 res.writeHead(code, headers);
-                res.__statusCode = statusCode = code;
-                res.__headers = headers || {};
+                res._logme.statusCode = code;
 
                 //status code response level handling
-                if(options.level === 'auto'){
+                if(options.level === 'auto') {
                     level = levels.INFO;
                     if(code >= 300) level = levels.WARN;
                     if(code >= 400) level = levels.ERROR;
@@ -90,22 +108,13 @@ function getLogger(logger4js, options) {
             res.end = function(chunk, encoding) {
                 res.end = end;
                 res.end(chunk, encoding);
-                var diff = process.hrtime(start);
-                res.responseTime = (diff[0] * 1e3 + diff[1] * 1e-6).toFixed(3);
-                if (thislogger.isLevelEnabled(level)) {
-                    if (typeof fmt === 'function') {
-                        var line = fmt(req, res, function(str){ return format(str, req, res); });
-                        if (line) thislogger.log(level, line);
-                    } else {
-                        thislogger.log(level, format(fmt, req, res));
-                    }
-                }
+                log_it();
             };
         }
 
-    //ensure next gets always called
-    next();
-  };
+        //ensure next gets always called
+        next();
+    };
 }
 
 /**
@@ -118,33 +127,16 @@ function getLogger(logger4js, options) {
  * @api private
  */
 
-function format(str, req, res) {
-    return str
-    .replace(':url', req.originalUrl)
-    .replace(':method', req.method)
-    .replace(':status', res.__statusCode || res.statusCode)
-    .replace(':response-time', res.responseTime)
-    .replace(':date', new Date().toUTCString())
-    .replace(':referrer', req.headers.referer || req.headers.referrer || '')
-    .replace(':http-version', req.httpVersionMajor + '.' + req.httpVersionMinor)
-    .replace(
-      ':remote-addr', req.ip || req._remoteAddress || (
-      req.socket &&
-        (req.socket.remoteAddress || (req.socket.socket && req.socket.socket.remoteAddress))
-    ))
-    .replace(':user-agent', req.headers['user-agent'] || '')
-    .replace(
-      ':content-length',
-      (res._headers && res._headers['content-length']) ||
-        (res.__headers && res.__headers['Content-Length']) ||
-        '-'
-    )
-    .replace(/:req\[([^\]]+)\]/g, function(_, field){ return req.headers[field.toLowerCase()]; })
-    .replace(/:res\[([^\]]+)\]/g, function(_, field){
-      return res._headers ?
-        (res._headers[field.toLowerCase()] || res.__headers[field])
-        : (res.__headers && res.__headers[field]);
-    });
+function format(fmt, req, res) {
+    fmt = fmt.replace(/"/g, '\\"');
+    var js = ' return "' + fmt.replace(/:([-\w]{2,})(?:\[([^\]]+)\])?/g, function(_, name, arg) {
+        var token_name = name;
+        if(typeof exports[name] != 'function')
+            name = 'skip';
+        return '"\n + (tokens["' + name + '"](req, res, "' + arg + '","' + token_name +'") || "-") + "';
+    }) + '";'
+    var fn = new Function('tokens, req, res', js);
+    return fn(exports, req, res);
 }
 
 /**
@@ -175,28 +167,114 @@ function format(str, req, res) {
  *         SAME AS "\\.jpg|\\.png|\\.gif"
  */
 function createNoLogCondition(nolog) {
-  var regexp = null;
+    var regexp = null;
 
     if (nolog) {
-    if (nolog instanceof RegExp) {
-      regexp = nolog;
-    }
-
-    if (typeof nolog === 'string') {
-      regexp = new RegExp(nolog);
-    }
-
-    if (Array.isArray(nolog)) {
-      var regexpsAsStrings = nolog.map(
-        function convertToStrings(o) {
-          return o.source ? o.source : o;
+        if (nolog instanceof RegExp) {
+            regexp = nolog;
         }
-      );
-      regexp = new RegExp(regexpsAsStrings.join('|'));
-    }
-  }
 
-  return regexp;
+        if (typeof nolog === 'string') {
+            regexp = new RegExp(nolog);
+        }
+
+        if (Array.isArray(nolog)) {
+            var regexpsAsStrings = nolog.map(
+                function convertToStrings(o) {
+                    return o.source ? o.source : o;
+                }
+            );
+            regexp = new RegExp(regexpsAsStrings.join('|'));
+        }
+    }
+
+    return regexp;
 }
 
+/**
+* Define a token function with the given `name`,
+* and callback `fn(req, res)`.
+*
+* @param {String} name
+* @param {Function} fn
+* @return {Object} exports for chaining
+* @api public
+*/
+
+exports.token = function(name, fn) {
+    exports[name] = fn;
+    return this;
+};
+
+exports.token('url', function(req) {
+    return req.originalUrl || req.url;
+});
+
+exports.token('method', function(req) {
+    return req.method;
+});
+
+exports.token('response-time', function(req, res) {
+    if (!res._logme.startAt) return '?';
+    var diff = process.hrtime(res._logme.startAt);
+    return (diff[0] * 1e3 + diff[1] * 1e-6).toFixed(3);
+});
+
+exports.token('date', function() {
+    return new Date().toFormat('YYYY-MM-DD HH24:MI:SS');
+});
+
+exports.token('status', function(req, res) {
+    return res._logme.statusCode || res.statusCode || null;
+});
+
+exports.token('referrer', function(req) {
+    return req.headers['referer'] || req.headers['referrer'];
+});
+
+exports.token('remote-addr', function(req) {
+    if (req.ip) return req.ip;
+    if (req._remoteAddress) return req._remoteAddress;
+    if (req.connection) return req.connection.remoteAddress;
+    return null;
+});
+
+exports.token('remote-user', function (req) {
+    var creds = auth(req)
+    var user = (creds && creds.name) || '-'
+    return user;
+})
+
+exports.token('http-version', function(req) {
+    return req.httpVersionMajor + '.' + req.httpVersionMinor;
+});
+
+exports.token('user-agent', function(req) {
+    return req.headers['user-agent'];
+});
+
+exports.token('rsp-data', function(req, res) {
+    return res.a;
+});
+
+exports.token('free', function(req, res, field) {
+    return field;
+});
+
+exports.token('skip', function(req, res, field, token_name) {
+    return 'log format error - skipped unknown token ' + token_name;
+});
+
+exports.token('req', function(req, res, field) {
+    return req.headers[field.toLowerCase()];
+});
+
+exports.token('res', function(req, res, field) {
+    return (res._headers || {})[field.toLowerCase()];
+});
+
 module.exports = getLogger;
+
+// TODO:
+// 1. reopen file after write error (restore write after error)
+// 2. log response data

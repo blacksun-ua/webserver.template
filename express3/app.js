@@ -19,8 +19,10 @@ module.exports.listen = function(conf, conf_path) {
     app.configure('development', function() {
         app.use(logger(l_main,   { level: 'auto', format: ':method :url', immediate : true }));
         app.use(logger(l_main,   { level: 'auto', format: ':method :url :status :res[content-length] - finished in :response-time ms' }));
-//        app.use(logger(l_in,     { immediate : true, level: 'auto', format: ':method :url :status :res[content-length] - finished in :response-time ms' }));
-//        app.use(logger(l_in_out, { immediate : true, level: 'auto', format: ':method :url :status :res[content-length] - finished in :response-time ms' }));
+        app.use(logger(l_main,   { level: 'auto' }));
+        app.use(logger(l_main,   { level: 'auto', format: ':foobar' }));
+        app.use(logger(l_in,     { level: 'auto', format: ':method :url :status :res[content-length] - finished in :response-time ms', immediate : true }));
+        app.use(logger(l_in_out, { level: 'auto', format: ':method :url :status :res[content-length] - finished in :response-time ms', immediate : true }));
     });
 
     app.configure('production', function() {

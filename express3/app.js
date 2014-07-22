@@ -22,7 +22,8 @@ module.exports.listen = function(conf, conf_path) {
         app.use(logger(l_main,   { level: 'auto' }));
         app.use(logger(l_main,   { level: 'auto', format: ':foobar' }));
         app.use(logger(l_in,     { level: 'auto', format: ':method :url :status :res[content-length] finished in :response-time ms' }));
-        app.use(logger(l_in_out, { level: 'auto', format: ':method :url :status :res[content-length] finished in :response-time ms :req-data :rsp-data' }));
+        app.use(logger(l_in_out, { level: 'auto', format: ':method :url :status :res[content-length] finished in :response-time ms :newline REQ: :req-data :newline RSP: :rsp-data' }));
+        app.use(logger(l_in_out, { level: 'auto', format: ':method :url :status :res[content-length] finished in :response-time ms :nreq-data :nrsp-data' }));
     });
 
     app.configure('production', function() {

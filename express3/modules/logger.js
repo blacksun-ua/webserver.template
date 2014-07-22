@@ -26,8 +26,11 @@ var DEFAULT_FORMAT = ':remote-addr - :remote-user [:date] ":method :url HTTP/:ht
  *   - `:remote-user`
  *   - `:http-version`
  *   - `:user-agent`
+ *   - `:newline`
  *   - `:req-data`
  *   - `:rsp-data`
+ *   - `:nreq-data`
+ *   - `:nrsp-data`
  *   - `:free`
  *   - `:skip`
  *   - `:req[header]` ex: `:req[Accept]`
@@ -259,15 +262,30 @@ exports.token('user-agent', function(req) {
     return req.headers['user-agent'];
 });
 
+exports.token('newline', function(req) {
+    return '\n';
+});
+
 exports.token('req-data', function(req, res) {
     var result = req.body || '';
-    result = '\nREQ: ' + util.inspect(result, false);
-    return result.length > 8 ? result : ' ';
+    result = util.inspect(result, false);
+    return result.length > 2 ? result : ' ';
 });
 
 exports.token('rsp-data', function(req, res) {
-    var data = '\nRSP: ' + util.inspect(res._logme.rsp);
-    return data.length > 6 ? data : ' ';
+    var data = util.inspect(res._logme.rsp);
+    return data.length > 0 ? data : ' ';
+});
+
+exports.token('nreq-data', function(req, res) {
+    var result = req.body || '';
+    result = '\n REQ: ' + util.inspect(result, false);
+    return result.length > 9 ? result : ' ';
+});
+
+exports.token('nrsp-data', function(req, res) {
+    var data = '\n RSP: ' + util.inspect(res._logme.rsp);
+    return data.length > 7 ? data : ' ';
 });
 
 exports.token('free', function(req, res, field) {

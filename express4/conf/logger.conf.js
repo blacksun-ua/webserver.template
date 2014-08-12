@@ -5,6 +5,8 @@ var name        = 'template'
 
 module.exports = {
     appenders : [ {
+        type        : 'console'
+    }, {
         type        : 'file',
         filename    : '/var/log/' + name + '/main.log',
         category    : name + '.main',

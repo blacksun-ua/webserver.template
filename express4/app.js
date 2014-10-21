@@ -3,10 +3,15 @@ var express     = require('express')
   , http        = require('http')
   , fs          = require('fs')
   , log4js      = require('log4js')
-  , logger      = require('modules/logger')
   , date_utils  = require('date-utils')
-  , path        = require('path');
-var util = require('util');
+  , path        = require('path')
+  , util        = require('util')
+  , logger      = require('./modules/logger.js')
+  ;
+
+function log() {
+    console.log(util.inspect.apply(this, arguments));
+}
 
 
 module.exports.listen = function(conf, conf_path) {
@@ -54,11 +59,11 @@ module.exports.listen = function(conf, conf_path) {
     }
 
 
-    app.use(express.bodyParser());
-    app.use(express.methodOverride());
-    app.use(express.cookieParser());
+//    app.use(express.bodyParser());
+//    app.use(express.methodOverride());
+//    app.use(express.cookieParser());
 //    app.use(express.session());
-    app.use(app.router);
+//    app.use(app.router);
 
 
     // process errors
@@ -66,7 +71,7 @@ module.exports.listen = function(conf, conf_path) {
         if(err) l_main.error(err);
         next(err, req, res, next);
     });
-    app.use(express.errorHandler(error_handler_options));
+//    app.use(express.errorHandler(error_handler_options));
 
 
 
@@ -80,26 +85,33 @@ module.exports.listen = function(conf, conf_path) {
     });
 
 
+
     // HTTP/HTTPS servers up
-    http.createServer(app).listen(conf.port, conf.host, function(err) {
+    var servers = {};
+    servers.http = http.createServer(app).listen(conf.port, conf.host, function(err) {
         l_main.info('HTTP  Server started on %s:%s with config %s', conf.host, conf.port, conf_path);
     });
 
-    http.createServer(app).listen(conf.admin_port, conf.host, function(err) {
-        l_main.info('Admin Server started on %s:%s with config %s', conf.host, conf.admin_port, conf_path);
-    });
+    if(conf.admin_port) {
+        servers.http_admin = http.createServer(app).listen(conf.admin_port, conf.host, function(err) {
+            l_main.info('Admin Server started on %s:%s with config %s', conf.host, conf.admin_port, conf_path);
+        });
+    }
 
-    var ssl_options  = conf.ssl;
-    ssl_options.key  = fs.readFileSync(conf.ssl.key);
-    ssl_options.cert = fs.readFileSync(conf.ssl.cert);
-    ssl_options.ca   = fs.readFileSync(conf.ssl.ca);
+    if(conf.https_port) {
+        var ssl_options  = conf.ssl;
+        ssl_options.key  = fs.readFileSync(conf.ssl.key);
+        ssl_options.cert = fs.readFileSync(conf.ssl.cert);
+        ssl_options.ca   = fs.readFileSync(conf.ssl.ca);
 
-    https.createServer(ssl_options, app).listen(conf.https_port, conf.host, function(err) {
-        l_main.info('HTTPS Server started on %s:%s with config %s', conf.host, conf.https_port, conf_path);
-    });
+        servers.https = https.createServer(ssl_options, app).listen(conf.https_port, conf.host, function(err) {
+            l_main.info('HTTPS Server started on %s:%s with config %s', conf.host, conf.https_port, conf_path);
+        });
+    }
 
     // TODO: user auth
     // TODO: configuration
     // TODO: favicon
 
+    return servers;
 }

@@ -273,7 +273,7 @@ exports.token('req-data', function(req, res) {
 });
 
 exports.token('rsp-data', function(req, res) {
-    var data = util.inspect(res._logme.rsp);
+    var data = util.inspect(res._logme.rsp.toString());
     return data.length > 0 ? data : ' ';
 });
 
@@ -284,7 +284,7 @@ exports.token('nreq-data', function(req, res) {
 });
 
 exports.token('nrsp-data', function(req, res) {
-    var data = '\n RSP: ' + util.inspect(res._logme.rsp);
+    var data = '\n RSP: ' + util.inspect(res._logme.rsp.toString());
     return data.length > 7 ? data : ' ';
 });
 

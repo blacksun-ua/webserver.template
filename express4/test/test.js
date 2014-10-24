@@ -1,11 +1,14 @@
 var request = require('supertest')
   , should  = require('should')
-  , app     = require('../app.js')
+  //, app     = require('../app.js')
+  , app     = require('../app_web.js')
   ;
 
 var config = {
     host    : "127.0.0.1"
-  , port    : "8011"
+  , http : {
+        port    : "8011"
+    }
   , logger  : './conf/logger.conf.js'
 }
 
@@ -24,7 +27,15 @@ describe('check template runs', function(){
             .get('/')
             .set('Accept', 'text/html')
             .expect('Content-Type', /text\/html/)
-            .expect(200, done);
+            .expect(200, 'hello world', done);
+    })
+
+    it('GET /admin', function(done){
+        request(servers.http)
+            .get('/admin')
+            .set('Accept', 'text/html')
+            .expect('Content-Type', /text\/html/)
+            .expect(200, 'admin panel', done);
     })
 })
 

@@ -1,12 +1,19 @@
-var express     = require('express')
-  , https       = require('https')
-  , http        = require('http')
-  , fs          = require('fs')
-  , log4js      = require('log4js')
-  , date_utils  = require('date-utils')
-  , path        = require('path')
-  , util        = require('util')
-  , logger      = require('./modules/logger.js')
+var
+    bodyParser      = require('body-parser')
+  , cookieParser    = require('cookie-parser')
+  , dateUtils       = require('date-utils')
+  , errorHandler    = require('errorhandler')
+  , express         = require('express')
+  , favicon         = require('serve-favicon')
+  , fs              = require('fs')
+  , http            = require('http')
+  , https           = require('https')
+  , log4js          = require('log4js')
+  , logger          = require('./modules/logger.js')
+  , passport        = require('passport')
+  , path            = require('path')
+  , session         = require('express-session')
+  , util            = require('util')
   ;
 
 function log() {
@@ -39,79 +46,104 @@ module.exports.listen = function(conf, conf_path) {
     var static_options, error_handler_options;
     if('development' == app.get('env')) {
         error_handler_options = { dumpExceptions: true, showStack: true }; // TODO: doesn't work
+        app.use(errorHandler());
     } else if('production' == app.get('env')) {
         var oneYear = 31557600000;
         static_options = { maxAge: oneYear };
     }
 
-    app.use(express.static(__dirname + '/public/thirdparty', static_options));
-    app.use(express.static(__dirname + '/public', static_options));
+
+    // STATIC CONTENT
+    app.use(express.static('public/thirdparty', static_options));
+    app.use(express.static('public', static_options));
+    app.use(favicon('public/images/favicon.ico'));
 
 
     // redirect to Admin Panel
     function adminPanel(req, res, next) {
-        var port = req.headers.host.split(':')[1];
-        if(port == conf.admin_port) {
+//        var port = req.headers.host.split(':')[1];
+//        if(port == conf.admin_port) {
             res.send('admin panel');
-        } else {
-            next();
-        }
+//        } else {
+//            next();
+//        }
     }
 
 
-//    app.use(express.bodyParser());
 //    app.use(express.methodOverride());
-//    app.use(express.cookieParser());
-//    app.use(express.session());
+    app.use(cookieParser());
+    app.use(bodyParser.json());
+    app.use(bodyParser.urlencoded({ extended: true }));
+    app.use(session({ secret: 'kbd-cat' }));
+    app.use(passport.initialize());
+    app.use(passport.session());
+    app.use(flash());
 //    app.use(app.router);
 
 
-    // process errors
+    // ERROR HANDLING
+//    app.use(log_errors);
+//    app.use(client_error_handling);
+//    app.use(error_handling);
+//    app.use(express.errorHandler(error_handler_options));
     app.use(function(err, req, res, next) {
         if(err) l_main.error(err);
         next(err, req, res, next);
     });
-//    app.use(express.errorHandler(error_handler_options));
+
+    // AUTH
+    function checkAuth(req, res, next) {
+        if(req.session && req.session.user_id) {
+            next();
+        } else {
+            res.send('Access denied. Got to login page');
+        }
+    }
+
+    app.all('*', checkAuth);
 
 
-
-    // setup routes
-    app.all('*', adminPanel, function(req, res, next) {
-        next();
-    });
+    // ROUTES
+    app.get('/admin', adminPanel);
 
     app.get('/', function(req, res) {
         res.send('hello world');
     });
 
 
-
-    // HTTP/HTTPS servers up
-    var servers = {};
-    servers.http = http.createServer(app).listen(conf.port, conf.host, function(err) {
-        l_main.info('HTTP  Server started on %s:%s with config %s', conf.host, conf.port, conf_path);
-    });
-
-    if(conf.admin_port) {
-        servers.http_admin = http.createServer(app).listen(conf.admin_port, conf.host, function(err) {
-            l_main.info('Admin Server started on %s:%s with config %s', conf.host, conf.admin_port, conf_path);
-        });
-    }
-
-    if(conf.https_port) {
-        var ssl_options  = conf.ssl;
-        ssl_options.key  = fs.readFileSync(conf.ssl.key);
-        ssl_options.cert = fs.readFileSync(conf.ssl.cert);
-        ssl_options.ca   = fs.readFileSync(conf.ssl.ca);
-
-        servers.https = https.createServer(ssl_options, app).listen(conf.https_port, conf.host, function(err) {
-            l_main.info('HTTPS Server started on %s:%s with config %s', conf.host, conf.https_port, conf_path);
-        });
-    }
-
     // TODO: user auth
     // TODO: configuration
-    // TODO: favicon
+    // TODO: http://expressjs.com/guide/behind-proxies.html
+
+
+    // HTTP/HTTPS servers + AdminPanel configuration
+
+    var servers = {};
+    if(conf.http) {
+        var lhost = conf.http.host || conf.host;
+        servers.http = http.createServer(app).listen(conf.http.port, lhost, function(err) {
+            l_main.info('HTTP  Server started on %s:%s with config %s', lhost, conf.http.port, conf_path);
+        });
+    }
+
+    if(conf.https) {
+        var ssl_options  = conf.https.ssl;
+        ssl_options.key  = fs.readFileSync(conf.https.ssl.key);
+        ssl_options.cert = fs.readFileSync(conf.https.ssl.cert);
+        ssl_options.ca   = fs.readFileSync(conf.https.ssl.ca);
+        var lhost        = conf.https.host || conf.host;
+
+        servers.https = https.createServer(ssl_options, app).listen(conf.https.port, lhost, function(err) {
+            l_main.info('HTTPS Server started on %s:%s with config %s', lhost, conf.https.port, conf_path);
+        });
+    }
+
+    if(conf.admin_panel) {
+        var lhost = conf.admin_panel.host || conf.host;
+        servers.admin_panel = http.createServer(app).listen(conf.admin_panel.port, lhost, function(err) {
+            l_main.info('Admin Server started on %s:%s with config %s', lhost, conf.admin_panel.port, conf_path);
+        });
+    }
 
     return servers;
 }

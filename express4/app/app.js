@@ -5,6 +5,7 @@ var
   , errorHandler    = require('errorhandler')
   , express         = require('express')
   , favicon         = require('serve-favicon')
+  , flash           = require('connect-flash')
   , fs              = require('fs')
   , http            = require('http')
   , https           = require('https')
